@@ -224,7 +224,7 @@ extraLabels: {}
 # key2: value2
 
 # Extra volumes to mount into each pod
-extraVolumeMounts: {}
+extraVolumeMounts: []
 # For deployments and daemonsets use `existingClaim`
 # - name: test-volume
 #   mountPath: /var/tmp/test-volume

@@ -3,7 +3,7 @@ kind: ConfigMap
 metadata:
   name: scope
   labels:
-  {{- include "appscope.labels" . | nindent 4 }}
+  {{- include "common.labels" . | nindent 4 }}
 data:
   validation: {{ required "Following destination must be defined: cribl or events and metrics" (or .Values.appscope.destinations.cribl (and .Values.appscope.destinations.metrics .Values.appscope.destinations.events)) }}
   scope.yml: |

@@ -41,6 +41,11 @@ helm.sh/chart: {{ include "common.chart" . }}
 app.kubernetes.io/version: {{ .Chart.AppVersion | quote }}
 {{- end }}
 app.kubernetes.io/managed-by: {{ .Release.Service }}
+{{- if .Values.extraLabels }}
+{{- range $key, $val := .Values.extraLabels }}
+{{ $key }}: {{ $val | quote -}}
+{{- end }}
+{{- end }}
 {{- end }}
 
 {{/*
@@ -59,5 +64,30 @@ Create the name of the service account to use
 {{- default (include "common.fullname" .) .Values.serviceAccount.name }}
 {{- else }}
 {{- default "default" .Values.serviceAccount.name }}
+{{- end }}
+{{- end }}
+
+{{/*
+Join annotations passed in from values.yaml for Services
+*/}}
+{{- define "common.service.annotations" -}}
+{{- if eq .templateType "internal" }}
+{{- $intAnnotations := (merge .Values.service.annotations .Values.service.internalAnnotations) -}}
+{{ toYaml $intAnnotations }}
+{{- end }}
+{{- if eq .templateType "external" }}
+{{- $extAnnotations := (merge .Values.service.annotations .Values.service.externalAnnotations) -}}
+{{ toYaml $extAnnotations }}
+{{- end }}
+{{- end }}
+
+{{/*
+Allows for overriding the default RBAC naming scheme
+*/}}
+{{- define "common.rbacName" -}}
+{{- if .Values.rbac.name }}
+{{- .Values.rbac.name | quote }}
+{{- else }}
+{{- printf "%s:%s:%s" (include "common.fullname" .) .Chart.Name .Release.Namespace | quote }}
 {{- end }}
 {{- end }}

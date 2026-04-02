@@ -1,6 +1,6 @@
-{{- define "outpost.pod" -}}
+{{- define "common.pod" -}}
 {{- if or .Values.serviceAccount.create (and (not .Values.serviceAccount.create) .Values.serviceAccount.name) }}
-serviceAccountName: {{ include "outpost.serviceAccountName" . }}
+serviceAccountName: {{ include "common.serviceAccountName" . }}
 {{- end }}
 
 {{- with .Values.imagePullSecrets }}
@@ -49,7 +49,7 @@ containers:
             {{- if ((.Values.cribl).existingSecretForLeader) }}
             name: {{ .Values.cribl.existingSecretForLeader }}
             {{- else }}
-            name: {{ include "outpost.fullname" . }}-cribl-settings
+            name: {{ include "common.fullname" . }}-cribl-settings
             {{- end }}
             key: CRIBL_DIST_LEADER_URL
       - name: CRIBL_HOME
@@ -71,7 +71,7 @@ containers:
             {{- if ((.Values.cribl).existingSecretForConfig) }}
             name: {{ .Values.cribl.existingSecretForConfig }}
             {{- else }}
-            name: {{ include "outpost.fullname" . }}-cribl-settings
+            name: {{ include "common.fullname" . }}-cribl-settings
             {{- end }}
             key: CRIBL_BOOTSTRAP
       {{- end }}

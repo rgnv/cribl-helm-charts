@@ -2,9 +2,9 @@
 apiVersion: v1
 kind: Service
 metadata:
-  name: {{ include "logstream-workergroup.fullname" . }}
+  name: {{ include "common.fullname" . }}
   labels:
-    {{- include "logstream-workergroup.labels" . | nindent 4 }}
+    {{- include "common.labels" . | nindent 4 }}
   annotations:
     {{- toYaml .Values.service.annotations  | nindent 4 }}
 
@@ -21,7 +21,7 @@ spec:
         {{- end }}
       {{- end }}
   selector:
-    {{- include "logstream-workergroup.selectorLabels" . | nindent 4 }}
+    {{- include "common.selectorLabels" . | nindent 4 }}
   {{- if (and (not (empty .Values.service.loadBalancerIP)) (eq $.Values.service.type "LoadBalancer")) }}
   loadBalancerIP: {{ .Values.service.loadBalancerIP }}
   {{- end -}}

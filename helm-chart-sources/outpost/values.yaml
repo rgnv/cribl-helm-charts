@@ -58,7 +58,7 @@ extraConfigMaps: []
 # Extra Secrets
 extraSecretMounts: []
 # Extra Volume mounts
-extraVolumeMounts: {}
+extraVolumeMounts: []
 # Extra containers
 extraContainers: []
 # Extra init containers
@@ -175,7 +175,7 @@ extraLabels: {}
 # key2: value2
 
 # Extra volumes to mount into each pod
-extraVolumeMounts: {}
+extraVolumeMounts: []
 
 # Downward API values
 envValueFrom:

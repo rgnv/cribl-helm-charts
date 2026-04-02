@@ -2,11 +2,11 @@
 apiVersion: v1
 kind: Service
 metadata:
-  name: {{ include "logstream-leader.fullname" . }}-internal
+  name: {{ include "common.fullname" . }}-internal
   labels:
-    {{- include "logstream-leader.labels" . | nindent 4 }}
+    {{- include "common.labels" . | nindent 4 }}
   annotations:
-    {{- include "logstream-leader.service.annotations" (merge (dict "templateType" "internal") .) | nindent 4 }}
+    {{- include "common.service.annotations" (merge (dict "templateType" "internal") .) | nindent 4 }}
 spec:
   type: {{ .Values.service.internalType }}
   ports:
@@ -20,7 +20,7 @@ spec:
         {{ end }}
       {{- end }}
   selector:
-    {{- include "logstream-leader.selectorLabels" . | nindent 4 }}
+    {{- include "common.selectorLabels" . | nindent 4 }}
   {{- if (and (not (empty .Values.service.internalLoadBalancerIP)) (eq $.Values.service.internalType "LoadBalancer"))  }}
   loadBalancerIP: {{ .Values.service.internalLoadBalancerIP }}
   {{- end -}}

@@ -2,14 +2,14 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: {{ include "logstream-workergroup.fullname" . }}
+  name: {{ include "common.fullname" . }}
   labels:
-    {{- include "logstream-workergroup.labels" . | nindent 4 }}
+    {{- include "common.labels" . | nindent 4 }}
 spec:
   replicas: {{ .Values.replicaCount }}
   selector:
     matchLabels:
-      {{- include "logstream-workergroup.selectorLabels" . | nindent 6 }}
+      {{- include "common.selectorLabels" . | nindent 6 }}
   {{- if (.Values.strategy) }}
   {{- if and (ne .Values.strategy.type "Recreate") (ne .Values.strategy.type "RollingUpdate") }}
       {{- fail (printf "Not a valid strategy type for Deployment (%s)" .Values.strategy.type) }}
@@ -27,7 +27,7 @@ spec:
       checksum/secret: {{ include (print $.Template.BasePath "/secret.yaml") . | sha256sum }}
     {{- end }}
       labels:
-        {{- include "logstream-workergroup.selectorLabels" . | nindent 8 }}
+        {{- include "common.selectorLabels" . | nindent 8 }}
 
     spec:
       {{- include "workergroup.pod" . | nindent 8 }}

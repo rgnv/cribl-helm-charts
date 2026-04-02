@@ -4,17 +4,17 @@ metadata:
   name: appscope
   labels:
     app: appscope
-  {{- include "appscope.labels" . | nindent 4 }}
+  {{- include "common.labels" . | nindent 4 }}
 spec:
   selector:
     matchLabels:
       app: appscope
-    {{- include "appscope.selectorLabels" . | nindent 6 }}
+    {{- include "common.selectorLabels" . | nindent 6 }}
   template:
     metadata:
       labels:
         app: appscope
-      {{- include "appscope.selectorLabels" . | nindent 8 }}
+      {{- include "common.selectorLabels" . | nindent 8 }}
     spec:
       containers:
       - args:
@@ -57,7 +57,7 @@ spec:
         - mountPath: /etc/certs
           name: certs
           readOnly: true
-      serviceAccountName: {{ include "appscope.fullname" . }}-cert-sa
+      serviceAccountName: {{ include "common.fullname" . }}-cert-sa
       volumes:
       - name: certs
         secret:

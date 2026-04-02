@@ -1,6 +1,6 @@
 {{- define "workergroup.pod" -}}
 {{- if or .Values.serviceAccount.create (and (not .Values.serviceAccount.create) .Values.serviceAccount.name) }}
-serviceAccountName: {{ include "logstream-workergroup.serviceAccountName" . }}
+serviceAccountName: {{ include "common.serviceAccountName" . }}
 {{- end }}
 
 {{- with .Values.imagePullSecrets }}
@@ -59,7 +59,7 @@ containers:
       - name: CRIBL_DIST_MASTER_URL
         valueFrom:
           secretKeyRef:
-            name: logstream-config-{{ include "logstream-workergroup.fullname" . }}
+            name: logstream-config-{{ include "common.fullname" . }}
             key: url-master
       {{- end }}
       # Self-Signed Certs

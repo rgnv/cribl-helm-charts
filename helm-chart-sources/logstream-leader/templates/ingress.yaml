@@ -2,9 +2,9 @@
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
-  name: {{ include "logstream-leader.fullname" . }}
+  name: {{ include "common.fullname" . }}
   labels:
-    {{- include "logstream-leader.labels" . | nindent 4 }}
+    {{- include "common.labels" . | nindent 4 }}
     {{- if .Values.ingress.labels }}
     {{- toYaml .Values.ingress.labels  | nindent 4 }}
     {{- end }}
@@ -28,7 +28,7 @@ spec:
         pathType: {{ .Values.ingress.pathType }}
         backend:
           service:
-            name: {{ include "logstream-leader.fullname" . }}
+            name: {{ include "common.fullname" . }}
             {{- $miter := 1 -}}
 
             {{-  range .Values.service.ports }}

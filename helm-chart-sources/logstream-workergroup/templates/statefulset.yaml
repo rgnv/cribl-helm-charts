@@ -2,15 +2,15 @@
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
-  name: {{ include "logstream-workergroup.fullname" . }}
+  name: {{ include "common.fullname" . }}
   labels:
-    {{- include "logstream-workergroup.labels" . | nindent 4 }}
+    {{- include "common.labels" . | nindent 4 }}
 spec:
-  serviceName: {{ include "logstream-workergroup.fullname" . }}
+  serviceName: {{ include "common.fullname" . }}
   replicas: {{ .Values.replicaCount }}
   selector:
     matchLabels:
-      {{- include "logstream-workergroup.selectorLabels" . | nindent 6 }}
+      {{- include "common.selectorLabels" . | nindent 6 }}
   {{- with .Values.statefulset.persistentVolumeClaimRetentionPolicy}}
   persistentVolumeClaimRetentionPolicy:
     {{- toYaml . | nindent 4 }}
@@ -29,7 +29,7 @@ spec:
         {{- toYaml . | nindent 8 }}
     {{- end }}
       labels:
-        {{- include "logstream-workergroup.selectorLabels" . | nindent 8 }}
+        {{- include "common.selectorLabels" . | nindent 8 }}
     spec:
       {{- include "workergroup.pod" . | nindent 8 }}
   volumeClaimTemplates:  

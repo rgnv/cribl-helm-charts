@@ -1,6 +1,6 @@
 {{- define "leader.pod" -}}
 {{- if or .Values.serviceAccount.create (and (not .Values.serviceAccount.create) .Values.serviceAccount.name) }}
-serviceAccountName: {{ include "logstream-leader.serviceAccountName" . }}
+serviceAccountName: {{ include "common.serviceAccountName" . }}
 {{- end }}
 
 {{- with .Values.imagePullSecrets }}
@@ -162,7 +162,7 @@ volumes:
   {{- if  or .Values.config.license ( or .Values.config.adminPassword .Values.config.groups ) }}
   - name: initial-config
     secret:
-      secretName: logstream-leader-config-{{ include "logstream-leader.fullname" . }}
+      secretName: logstream-leader-config-{{ include "common.fullname" . }}
   {{- end }}
   {{- range .Values.extraVolumeMounts }}
   - name: {{ .name }}
@@ -179,7 +179,7 @@ volumes:
   - name: config-storage
     {{- if .Values.persistence.enabled }}
     persistentVolumeClaim:
-      claimName: {{ coalesce .Values.persistence.claimName (include "logstream-leader.fullname" .) }}
+      claimName: {{ coalesce .Values.persistence.claimName (include "common.fullname" .) }}
     {{- else }}
     emptyDir: {}
     {{- end }}
@@ -200,7 +200,7 @@ volumes:
 {{- if or .Values.securityContext .Values.podSecurityContext }}
   - name: gitconfig
     configMap:
-      name: {{ include "logstream-leader.fullname" . }}-gitconfig
+      name: {{ include "common.fullname" . }}-gitconfig
       items:
         - key: .gitconfig
           path: .gitconfig
