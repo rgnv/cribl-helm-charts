@@ -1,18 +1,17 @@
-{{- if .Values.ingress.enable}}
+{{- if .Values.ingress.enable }}
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
-  name: {{ include "logstream-leader.fullname" . }}
+  name: {{ include "outpost.fullname" . }}
   labels:
-    {{- include "logstream-leader.labels" . | nindent 4 }}
+    {{- include "outpost.labels" . | nindent 4 }}
     {{- if .Values.ingress.labels }}
-    {{- toYaml .Values.ingress.labels  | nindent 4 }}
+    {{- toYaml .Values.ingress.labels | nindent 4 }}
     {{- end }}
   {{- if .Values.ingress.annotations }}
   annotations:
     {{- toYaml .Values.ingress.annotations | nindent 4 }}
   {{- end }}
-
 spec:
   {{- with .Values.ingress.tls }}
   tls:
@@ -28,18 +27,9 @@ spec:
         pathType: {{ .Values.ingress.pathType }}
         backend:
           service:
-            name: {{ include "logstream-leader.fullname" . }}
-            {{- $miter := 1 -}}
-
-            {{-  range .Values.service.ports }}
-            {{- if (eq $miter 1) }}
-            {{- if .external }}
+            name: {{ include "outpost.fullname" . }}
             port:
-              number: {{ .port }}
-            {{- $miter = add $miter 1 }}
-            {{- end -}}
-            {{- end -}}
-            {{- end -}}
+              number: 9000
   {{- if .Values.ingress.host }}
     host: {{ .Values.ingress.host }}
   {{- end }}

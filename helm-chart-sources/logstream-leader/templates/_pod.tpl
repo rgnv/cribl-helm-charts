@@ -12,6 +12,9 @@ securityContext:
 {{- range $key, $value := .Values.podSecurityContext }}
 {{- if or (eq $key "runAsUser") (eq $key "runAsGroup") (eq $key "fsGroup")}}
   {{ $key }}: {{ $value | int }}
+{{- else if or (kindIs "map" $value) (kindIs "slice" $value) }}
+  {{ $key }}:
+    {{- toYaml $value | nindent 4 }}
 {{- else }}
   {{ $key }}: {{ $value }}
 {{- end }}
@@ -26,7 +29,7 @@ containers:
     {{- range $key, $value := .Values.securityContext }}
     {{- if or (eq $key "runAsUser") (eq $key "runAsGroup") (eq $key "fsGroup")}}
       {{ $key }}: {{ $value | int }}
-    {{- else if kindIs "map" $value }}
+    {{- else if or (kindIs "map" $value) (kindIs "slice" $value) }}
       {{ $key }}:
         {{- toYaml $value | nindent 8 }}
     {{- else }}

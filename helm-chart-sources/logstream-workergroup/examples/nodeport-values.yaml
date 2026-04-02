@@ -1,0 +1,237 @@
+# NodePort Service Configuration for Cribl Stream Worker Group
+# Usage: helm install cribl-workers helm-chart-sources/logstream-workergroup -f nodeport-values.yaml
+#
+# NodePort is useful when:
+# - Cloud provider doesn't support LoadBalancer
+# - OpenShift clusters with LoadBalancer restrictions
+# - Development/testing environments
+# - Direct node access is available
+
+# ========================================
+# NodePort Service Configuration
+# ========================================
+# NodePort exposes the service on each node's IP at static ports
+# External traffic: <NodeIP>:<NodePort> -> Service -> Pod
+
+service:
+  enable: true
+  type: NodePort
+  
+  # Worker Group has multiple ports for different data sources
+  ports:
+  - name: tcpjson
+    port: 10001
+    protocol: TCP
+    nodePort: 30001    # Optional: specify node port (30000-32767)
+  - name: s2s
+    port: 9997
+    protocol: TCP
+    nodePort: 30997
+  - name: http
+    port: 10080
+    protocol: TCP
+    nodePort: 30080
+  - name: https
+    port: 10081
+    protocol: TCP
+    nodePort: 30081
+  - name: syslog
+    port: 5140
+    protocol: TCP
+    nodePort: 30540
+  - name: metrics
+    port: 8125
+    protocol: TCP
+    nodePort: 30125
+  - name: elastic
+    port: 9200
+    protocol: TCP
+    nodePort: 30920
+  - name: hec
+    port: 8088
+    protocol: TCP
+    nodePort: 30088
+  - name: criblhttp
+    port: 10200
+    protocol: TCP
+    nodePort: 30200
+  - name: cribltcp
+    port: 10300
+    protocol: TCP
+    nodePort: 30300
+
+# ========================================
+# Leader Connection Configuration
+# ========================================
+config:
+  host: logstream-leader-internal  # Leader service name
+  port: 4200                       # Leader internal port
+  group: kubernetes                 # Worker group name
+  token: criblleader               # Leader authentication token
+  useExistingSecret: false
+  rejectSelfSignedCerts: 0
+  probes: true
+
+  # If using TLS on leader:
+  # tlsLeader:
+  #   enable: true
+
+# ========================================
+# Access Instructions
+# ========================================
+# Deploy the chart:
+#   helm install cribl-workers helm-chart-sources/logstream-workergroup \
+#     -f examples/nodeport-values.yaml -n cribl
+#
+# Send data to workers:
+#   # Syslog data
+#   echo "test message" | nc <node-ip> 30540
+#
+#   # HTTP data
+#   curl -X POST http://<node-ip>:30080 -d '{"test":"data"}'
+#
+#   # TCP JSON data
+#   echo '{"test":"data"}' | nc <node-ip> 30001
+#
+# Get node IPs:
+#   kubectl get nodes -o wide
+#   kubectl get nodes -o jsonpath='{range .items[*]}{.status.addresses[?(@.type=="InternalIP")].address}{"\n"}{end}'
+
+# ========================================
+# Security Considerations
+# ========================================
+# NodePort exposes services on all nodes by default
+# Consider firewall rules to restrict access:
+#
+# 1. Limit access to specific IPs using loadBalancerSourceRanges:
+#    service:
+#      type: NodePort
+#      loadBalancerSourceRanges:
+#        - "10.0.0.0/8"      # Internal network only
+#        - "192.168.1.0/24"  # VPN network
+#
+# 2. Use NetworkPolicy to restrict traffic:
+#    apiVersion: networking.k8s.io/v1
+#    kind: NetworkPolicy
+#    metadata:
+#      name: allow-worker-ports
+#    spec:
+#      podSelector:
+#        matchLabels:
+#          app: cribl-workers
+#      policyTypes:
+#        - Ingress
+#      ingress:
+#        - from:
+#            - ipBlock:
+#                cidr: 10.0.0.0/8
+#          ports:
+#            - port: 10001    # TCP JSON
+#              protocol: TCP
+#            - port: 9997     # S2S
+#              protocol: TCP
+#            - port: 10080    # HTTP
+#              protocol: TCP
+#            # ... add other ports as needed
+
+# ========================================
+# OpenShift Specific Notes
+# ========================================
+# On OpenShift, NodePort may be preferred when:
+# - LoadBalancer type is forbidden by policy
+# - Router/Ingress infrastructure is not available
+# - Simple setup is needed for testing
+#
+# Note: OpenShift Router is recommended for production
+# Router provides better security, TLS termination, and load balancing
+
+# ========================================
+# Configuring Node Firewall
+# ========================================
+# For production, configure node firewall to limit NodePort access:
+#
+# Example (firewalld):
+#   firewall-cmd --permanent --add-port=30001/tcp  # TCP JSON
+#   firewall-cmd --permanent --add-port=30997/tcp  # S2S
+#   firewall-cmd --permanent --add-port=30080/tcp  # HTTP
+#   firewall-cmd --reload
+#
+# Example (iptables):
+#   iptables -A INPUT -p tcp --dport 30001:30300 -j ACCEPT
+#   iptables-save > /etc/iptables/rules.v4
+#
+# Example (cloud security groups):
+#   - Allow inbound TCP 30001-30300 from trusted IPs
+#   - Configure per-port access based on data sources
+
+# ========================================
+# Troubleshooting
+# ========================================
+# If NodePort is not accessible:
+#
+# 1. Check service is created:
+#    kubectl get svc cribl-workers
+#
+# 2. Check node ports are allocated:
+#    kubectl get svc cribl-workers -o jsonpath='{.spec.ports[*].nodePort}'
+#
+# 3. Test node connectivity:
+#    curl http://<node-ip>:30080/
+#    nc -vz <node-ip> 30001
+#
+# 4. Check node firewall:
+#    sudo firewall-cmd --list-ports
+#    sudo iptables -L -n | grep 30080
+#
+# 5. Check service endpoints:
+#    kubectl get endpoints cribl-workers
+#
+# 6. Check pod is running:
+#    kubectl get pods -l app=cribl-workers
+#
+# 7. Test leader connectivity from worker pod:
+#    kubectl exec <pod> -- curl http://logstream-leader-internal:4200/api/v1/health
+
+# ========================================
+# Deploying Behind a Load Balancer
+# ========================================
+# You can combine NodePort with an external load balancer:
+#
+# 1. Create NodePort service:
+#    helm install cribl-workers ... -f nodeport-values.yaml
+#
+# 2. Configure external load balancer to forward traffic:
+#    NodePort 30080 -> Worker HTTP
+#    NodePort 30540 -> Worker Syslog
+#    NodePort 30001 -> Worker TCP JSON
+#    # ... other ports as needed
+#
+# 3. External LB example (HAProxy):
+#    frontend worker_http
+#        bind *:80
+#        mode tcp
+#        default_backend worker_nodes_http
+#
+#    backend worker_nodes_http
+#        mode tcp
+#        balance roundrobin
+#        option tcp-check
+#        tcp-check connect port 30080
+#        server node1 <node1-ip>:30080 check
+#        server node2 <node2-ip>:30080 check
+#        server node3 <node3-ip>:30080 check
+
+# ========================================
+# Port Allocation Strategy
+# ========================================
+# When deploying multiple worker groups:
+#
+# 1. Use separate node port ranges for each group:
+#    Worker Group 1: 30001-30050
+#    Worker Group 2: 30101-30150
+#    Worker Group 3: 30201-30250
+#
+# 2. Document port allocations in your infrastructure
+#
+# 3. Consider using a service mesh (Istio, Linkerd) for
+#    better traffic management in production

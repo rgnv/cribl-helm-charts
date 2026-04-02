@@ -136,11 +136,94 @@ We recommend that you use the same version of the Cribl Stream code on leader n
 
 * To install the chart using the logstream leader 'logstream.lab.cribl.io' in the namespace "cribl-helm"
 
- `helm install logstream-wg cribl/logstream-workergroup --set config.host='logstream.lab.cribl.io' -n cribl-helm`
+`helm install logstream-wg cribl/logstream-workergroup --set config.host='logstream.lab.cribl.io' -n cribl-helm`
  
-# Upgrading
+# Deployment Examples
 
-This is done simply using the `helm upgrade` command. It's important to ensure that your Helm repository cache is up to date, so the first command is:
+This chart includes several example value files for different deployment scenarios:
+
+## Service Types
+
+The chart supports multiple service types for different platforms:
+
+### LoadBalancer (Default)
+External access via cloud load balancer. Default configuration, suitable for cloud environments with LoadBalancer support.
+
+```yaml
+service:
+  type: LoadBalancer
+```
+
+### ClusterIP
+Internal-only access, typically used with Ingress or OpenShift Routes.
+
+```yaml
+service:
+  type: ClusterIP
+```
+
+### NodePort
+Direct node access without LoadBalancer. Useful for bare-metal clusters and OpenShift.
+
+**Example:** See [`examples/nodeport-values.yaml`](examples/nodeport-values.yaml)
+
+Key configuration:
+- NodePorts for all worker data ports (TCP JSON, Syslog, S2S, HTTP, HTTPS, etc.)
+- Port allocation strategy for multiple worker groups
+- Firewall configuration notes
+
+## OpenShift Deployment
+
+For OpenShift clusters with restricted SCCs, use the OpenShift example:
+
+**Example:** See [`examples/openshift-values.yaml`](examples/openshift-values.yaml)
+
+Key features:
+- Non-root security contexts (UID/GID 1000620000)
+- CRIBL_VOLUME_DIR configuration for writable volumes
+- ClusterIP services with OpenShift Routes
+- ServiceAccount with SCC binding instructions
+- PersistentVolumeClaims for state (PQ)
+
+## Kubernetes Gateway API
+
+Modern HTTP/TCP routing using Gateway API (successor to Ingress):
+
+**Example:** See [`examples/kubernetes-gateway-api.yaml`](examples/kubernetes-gateway-api.yaml)
+
+Prerequisites:
+- Gateway API CRDs installed
+- Gateway controller (Envoy Gateway, Istio, Contour, etc.)
+
+Key features:
+- HTTPRoute for worker HTTP/HTTPS ports
+- TCPRoute for TCP JSON, S2S, Syslog, and other data ports
+- Cross-namespace routing capability
+- Multiple worker group strategies
+
+## Persistent Volume for Persistent Queueing
+
+For worker groups with persistent queues (PQ), configure persistent storage:
+
+```yaml
+extraVolumeMounts:
+  - name: pq-storage
+    persistentVolumeClaim:
+      claimName: cribl-pq-pvc
+    mountPath: /opt/cribl/queue-volume
+```
+
+## Example Files
+
+| File | Description | Use Case |
+|------|-------------|----------|
+| `examples/openshift-values.yaml` | OpenShift deployment with SCCs | OpenShift clusters |
+| `examples/nodeport-values.yaml` | NodePort service configuration | Bare-metal, restricted environments |
+| `examples/kubernetes-gateway-api.yaml` | Gateway API configuration | Modern Kubernetes deployments |
+
+ # Upgrading
+ 
+ This is done simply using the `helm upgrade` command. It's important to ensure that your Helm repository cache is up to date, so the first command is:
 
 ```
 helm repo update

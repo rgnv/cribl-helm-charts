@@ -1,0 +1,160 @@
+# OpenShift-specific values for Cribl Stream Leader
+# Usage: helm install cribl-leader helm-chart-sources/logstream-leader -f openshift-values.yaml
+
+# ========================================
+# OpenShift Security Context Configuration
+# ========================================
+# These settings are compatible with the default "restricted" SCC
+# No custom SCC required!
+
+podSecurityContext:
+  runAsNonRoot: true
+  seccompProfile:
+    type: RuntimeDefault
+
+securityContext:
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop:
+      - ALL
+
+# ========================================
+# CRIBL_VOLUME_DIR - Writable Configuration
+# ========================================
+# CRIBL_VOLUME_DIR redirects Cribl's state/config to a writable location
+# This is REQUIRED for OpenShift non-root deployments
+
+config:
+  criblHome: /tmp/cribl    # Use writable location (emptyDir or PVC)
+  # token: "your-token-here"  # REQUIRED for distributed mode (enables port 4200)
+
+# ========================================
+# Service Configuration
+# ========================================
+# Use ClusterIP instead of LoadBalancer (OpenShift restriction)
+service:
+  internalType: ClusterIP   # Internal leader-to-worker communication
+  externalType: ClusterIP   # External API (use Route/Ingress for access)
+
+# ========================================
+# ServiceAccount for SCC Binding
+# ========================================
+serviceAccount:
+  create: true
+  name: cribl-leader-sa
+
+# ========================================
+# Persistence Options (Choose ONE)
+# ========================================
+
+# Option 1: No persistence (ephemeral, for testing)
+persistence:
+  enabled: false
+
+# Option 2: Use built-in PVC (recommended for production)
+# persistence:
+#   enabled: true
+#   storageClassName: crc-csi-hostpath-provisioner  # Replace with your storage class
+#   size: 20Gi
+
+# Option 3: Use extraVolumeMounts with emptyDir (ephemeral)
+# extraVolumeMounts:
+#   - name: config-volume
+#     emptyDir: {}
+#     mountPath: /tmp/cribl/config-volume
+
+# Option 4: Use extraVolumeMounts with custom PVC
+# extraVolumeMounts:
+#   - name: config-volume
+#     persistentVolumeClaim:
+#       claimName: cribl-leader-pvc
+#     mountPath: /tmp/cribl/config-volume
+
+# ========================================
+# Resource Limits (Adjust for your cluster)
+# ========================================
+resources:
+  limits:
+    cpu: 1000m
+    memory: 1024Mi
+  requests:
+    cpu: 100m
+    memory: 256Mi
+
+# ========================================
+# TLS Health Probes
+# ========================================
+# If using TLS on leader, uncomment this:
+# config:
+#   healthScheme: HTTPS
+
+# ========================================
+# Ingress Configuration (Alternative to Route)
+# ========================================
+# OpenShift supports both Route and Ingress
+# Use Ingress for portability across Kubernetes distributions
+
+ingress:
+  enabled: true
+  className: ""  # OpenShift default Ingress controller
+  annotations:
+    route.openshift.io/termination: "edge"
+  hosts:
+    - host: cribl-leader.apps-crc.testing
+      paths:
+        - path: /
+          pathType: Prefix
+  tls: []
+    # - secretName: cribl-leader-tls
+    #   hosts:
+    #     - cribl-leader.apps-crc.testing
+
+# ========================================
+# Distributed Mode Configuration
+# ========================================
+# For distributed mode (Leader + Workers), you MUST set config.token
+# This enables port 4200 for worker communication
+
+# config:
+#   token: "your-secure-token-here"
+
+# ========================================
+# Complete Deployment Commands
+# ========================================
+# 1. Create namespace:
+#    oc new-project cribl-test
+#
+# 2. Deploy with OpenShift values:
+#    helm install cribl-leader helm-chart-sources/logstream-leader \
+#      -f examples/openshift-values.yaml -n cribl-test
+#
+# 3. Verify deployment:
+#    oc get pods -n cribl-test
+#    oc logs <pod-name> -n cribl-test
+#    oc get pod <pod> -o jsonpath='{.metadata.annotations.openshift\.io/scc}'
+#
+# 4. Check health:
+#    oc exec <pod> -- curl -s http://localhost:9000/api/v1/health
+#
+# 5. For distributed mode, set config.token:
+#    helm install cribl-leader helm-chart-sources/logstream-leader \
+#      --set config.token=your-secure-token \
+#      -f examples/openshift-values.yaml -n cribl-test
+
+# ========================================
+# Troubleshooting
+# ========================================
+# If you encounter "permission denied" errors:
+# - Verify CRIBL_VOLUME_DIR is set: oc exec <pod> -- env | grep CRIBL_VOLUME_DIR
+# - Check pod SCC: oc get pod <pod> -o jsonpath='{.metadata.annotations.openshift\.io/scc}'
+# - Ensure config.criblHome is set to a writable location
+#
+# If workers cannot connect to leader port 4200:
+# - Ensure config.token is set (required for distributed mode)
+# - Check leader logs: oc logs <leader-pod>
+# - Verify service: oc get svc cribl-leader-internal
+#
+# If you encounter "LoadBalancer type forbidden":
+# - Use ClusterIP (as shown above) and create Ingress/Route
+#
+# For more troubleshooting, see: docs/openshift-troubleshooting.md

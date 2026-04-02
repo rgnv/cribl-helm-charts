@@ -1,0 +1,362 @@
+# Kubernetes Gateway API Configuration for Cribl Stream Worker Group
+# Usage: Deploy workers with ClusterIP, then apply Gateway manifests
+#
+# Gateway API is the successor to Ingress, supporting:
+# - TCP/UDP routing (not just HTTP)
+# - Cross-namespace routing
+# - Better load balancing and traffic management
+# - Native Kubernetes RBAC for routing rules
+#
+# Prerequisites:
+# - Gateway API CRDs installed (kubectl get gatewayclasses)
+# - Gateway controller deployed (Envoy Gateway, Istio, Contour, etc.)
+# - DNS configured for your domain
+
+# ========================================
+# Worker Values - ClusterIP Only
+# ========================================
+# Deploy workers with no external service:
+# helm install cribl-workers helm-chart-sources/logstream-workergroup \
+#   --set service.type=ClusterIP
+
+service:
+  enable: true
+  type: ClusterIP
+
+# ========================================
+# Gateway Class (Shared with Leader)
+# ========================================
+# Use the same GatewayClass as leader
+# Install once per cluster
+# See: examples/kubernetes-gateway-api.yaml in leader chart
+
+# ========================================
+# Gateway (Dedicated for Workers)
+# ========================================
+# Workers typically need different Gateway configuration
+# May expose multiple ports for different data sources
+
+# Save as: worker-gateway.yaml
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: Gateway
+metadata:
+  name: cribl-workers-gateway
+  namespace: cribl
+  labels:
+    app: cribl-workers
+spec:
+  gatewayClassName: cribl-gateway-class
+  listeners:
+    # HTTP listener for HTTP data
+    - name: http-data
+      protocol: HTTP
+      port: 80
+      allowedRoutes:
+        namespaces:
+          from: Same
+
+    # Multiple TCP listeners for different data sources
+    # TCP listeners use TCPRoute (beta) or TLSServerPolicy (v1)
+    # Note: In Gateway API v1, use HTTPRoute with AppProtocol for TCP
+
+---
+# ========================================
+# TCPRoute - TCP Data Sources (Beta)
+# ========================================
+# Note: TCPRoute requires Gateway API v1beta1 or later
+# Most Gateway controllers support TCPRoute
+
+# TCP JSON data (port 10001)
+---
+apiVersion: gateway.networking.k8s.io/v1beta1
+kind: TCPRoute
+metadata:
+  name: cribl-workers-tcpjson
+  namespace: cribl
+spec:
+  parentRefs:
+    - name: cribl-workers-gateway
+      port: 10001
+  rules:
+    - backendRefs:
+        - name: cribl-workers
+          port: 10001
+
+---
+# Syslog data (port 5140)
+---
+apiVersion: gateway.networking.k8s.io/v1beta1
+kind: TCPRoute
+metadata:
+  name: cribl-workers-syslog
+  namespace: cribl
+spec:
+  parentRefs:
+    - name: cribl-workers-gateway
+      port: 5140
+  rules:
+    - backendRefs:
+        - name: cribl-workers
+          port: 5140
+
+---
+# HTTP data (port 10080)
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: cribl-workers-http
+  namespace: cribl
+  labels:
+    app: cribl-workers
+spec:
+  parentRefs:
+    - name: cribl-workers-gateway
+      namespace: cribl
+  
+  hostnames:
+    - "cribl-workers.example.com"
+  
+  rules:
+    - backendRefs:
+        - name: cribl-workers
+          port: 10080
+
+---
+# S2S data (port 9997)
+---
+apiVersion: gateway.networking.k8s.io/v1beta1
+kind: TCPRoute
+metadata:
+  name: cribl-workers-s2s
+  namespace: cribl
+spec:
+  parentRefs:
+    - name: cribl-workers-gateway
+      port: 9997
+  rules:
+    - backendRefs:
+        - name: cribl-workers
+          port: 9997
+
+---
+# ========================================
+# Alternative: Single HTTPRoute with Path-Based Routing
+# ========================================
+# If your Gateway controller supports path-based routing:
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: cribl-workers-path-routing
+  namespace: cribl
+spec:
+  parentRefs:
+    - name: cribl-workers-gateway
+  hostnames:
+    - "cribl.example.com"
+  
+  rules:
+    # Route /workers/* to worker service
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /workers
+      backendRefs:
+        - name: cribl-workers
+          port: 10080
+      
+      # Rewrite path (remove /workers prefix)
+      filters:
+        - type: URLRewrite
+          urlRewrite:
+            path:
+              type: ReplacePrefixMatch
+              replacePrefixMatch: /api/v1/health
+
+---
+# ========================================
+# Deployment Commands
+# ========================================
+# 1. Install Gateway API CRDs (if not present):
+#    kubectl apply -f https://github.com/kubernetes-sigs/gateway-api/releases/download/v1.0.0/standard-install.yaml
+#
+# 2. Deploy Gateway controller (Envoy Gateway example):
+#    helm install envoy-gateway oci://docker.io/envoyproxy/gateway-helm \
+#      --version v1.0.0 -n envoy-gateway-system --create-namespace
+#
+# 3. Deploy leader first:
+#    helm install cribl-leader helm-chart-sources/logstream-leader \
+#      --set service.internalType=ClusterIP --set service.externalType=ClusterIP -n cribl
+#
+# 4. Deploy workers with ClusterIP:
+#    helm install cribl-workers helm-chart-sources/logstream-workergroup \
+#      --set service.type=ClusterIP -n cribl
+#
+# 5. Apply Gateway manifests:
+#    kubectl apply -f worker-gateway.yaml
+#    kubectl apply -f worker-routes.yaml
+#
+# 6. Get Gateway IPs:
+#    kubectl get gateway -n cribl
+#    kubectl get gateway cribl-workers-gateway -n cribl -o jsonpath='{.status.addresses[0].value}'
+#
+# 7. Configure DNS:
+#    cribl-workers.example.com -> <Gateway-IP>
+#
+# 8. Test TCP connectivity:
+#    echo "test data" | nc <Gateway-IP> 10001
+
+# ========================================
+# Managing Multiple Worker Groups
+# ========================================
+# For multiple worker groups with Gateway API:
+
+# Option 1: Separate Gateways per group
+# - Worker Group 1: cribl-workers-g1-gateway
+# - Worker Group 2: cribl-workers-g2-gateway
+
+# Option 2: Shared Gateway with different hostnames
+# - HTTPRoute for g1.cribl-workers.example.com
+# - HTTPRoute for g2.cribl-workers.example.com
+
+# Option 3: Shared Gateway with path-based routing
+# - HTTPRoute for /g1/ -> service: cribl-workers-g1
+# - HTTPRoute for /g2/ -> service: cribl-workers-g2
+
+# ========================================
+# Direct TCP Connections (Advanced)
+# ========================================
+# For direct TCP connections without Gateway:
+#
+# 1. Use Service of type: LoadBalancer or NodePort
+# 2. Configure external load balancer separately
+# 3. Use Gateway API TCPRoute for better control
+#
+# Note: Gateway API TCPRoute is preferred for production
+
+# ========================================
+# TLS Configuration for Workers
+# ========================================
+# For TLS-enabled data sources:
+
+# TLS Secret:
+# kubectl create secret tls cribl-workers-tls \
+#   --cert=path/to/tls.crt \
+#   --key=path/to/tls.key \
+#   -n cribl
+
+# Gateway listener with TLS:
+# listeners:
+#   - name: https-data
+#     protocol: HTTPS
+#     port: 443
+#     tls:
+#       mode: Terminate
+#       certificateRefs:
+#         - name: cribl-workers-tls
+#           namespace: cribl
+#     allowedRoutes:
+#       namespaces:
+#         from: Same
+
+# HTTPRoute for HTTPS:
+# ---
+# apiVersion: gateway.networking.k8s.io/v1
+# kind: HTTPRoute
+# metadata:
+#   name: cribl-workers-https
+#   namespace: cribl
+# spec:
+#   parentRefs:
+#     - name: cribl-workers-gateway
+#       port: 443
+#   hostnames:
+#     - "cribl-workers-tls.example.com"
+#   rules:
+#     - backendRefs:
+#         - name: cribl-workers
+#           port: 10081
+
+# ========================================
+# Troubleshooting
+# ========================================
+# If Gateway is not working:
+#
+# 1. Check Gateway status:
+#    kubectl describe gateway cribl-workers-gateway -n cribl
+#
+# 2. Check TCPRoute status:
+#    kubectl describe tcproute cribl-workers-tcpjson -n cribl
+#
+# 3. Check HTTPRoute status:
+#    kubectl describe httproute cribl-workers-http -n cribl
+#
+# 4. Check Gateway controller logs:
+#    kubectl logs -n envoy-gateway-system -l app=envoy-gateway
+#
+# 5. Test TCP connectivity:
+#    nc -vz <Gateway-IP> 10001
+#    echo "test" | nc <Gateway-IP> 10001
+#
+# 6. Test HTTP connectivity:
+#    curl -v http://cribl-workers.example.com/
+#
+# 7. Check worker service endpoints:
+#    kubectl get endpoints cribl-workers -n cribl
+#    kubectl get pods -l app=cribl-workers -n cribl
+
+# ========================================
+# Gateway Controller Comparison
+# ========================================
+# Envoy Gateway (Recommended):
+# - Native Gateway API implementation
+# - Supports TCPRoute, HTTPRoute
+# - Good documentation
+# - Active community
+#
+# Istio:
+# - Mature Gateway API support
+# - Additional service mesh features
+# - Good for microservices
+#
+# Contour:
+# - Lightweight ingress controller
+# - Gateway API support via Contour
+#
+# NGINX Gateway:
+# - NGINX-based Gateway controller
+# - Mature, stable
+
+# ========================================
+# Port Allocation Guide
+# ========================================
+# When using Gateway API with multiple worker groups:
+#
+# Recommended port allocation:
+# - Gateway listeners: 80, 443, 10001-11000
+# - Worker Group 1: 10001-10050 (TCP JSON, S2S, HTTP, etc.)
+# - Worker Group 2: 10101-10150
+# - Worker Group 3: 10201-10250
+#
+# Document port allocations in your infrastructure
+# Use Kubernetes ServiceMonitor for monitoring
+
+# ========================================
+# Advanced: Gateway API with Service Mesh
+# ========================================
+# For enhanced traffic control, combine Gateway API with Service Mesh:
+#
+# Istio example:
+# - Deploy Istio with Gateway API integration
+# - Use VirtualService for traffic splitting
+# - Use DestinationRule for load balancing
+# - Enable mTLS for security
+#
+# This provides:
+# - Traffic mirroring
+# - Circuit breaking
+# - Retry policies
+# - Load balancing algorithms
+# - Traffic shifting (canary, blue-green)

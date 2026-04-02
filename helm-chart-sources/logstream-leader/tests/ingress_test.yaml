@@ -85,3 +85,24 @@ tests:
       - equal:
           path: spec.rules[0].http.paths[0].pathType
           value: "goat-power"
+
+  - it: Should NOT render empty annotations
+    set:
+      ingress:
+        enable: true
+        annotations: {}
+    template: ingress.yaml
+    asserts:
+      - notExists:
+          path: metadata.annotations
+
+  - it: Should render annotations when set
+    set:
+      ingress:
+        enable: true
+        annotations:
+          kubernetes.io/ingress.class: nginx
+    template: ingress.yaml
+    asserts:
+      - exists:
+          path: metadata.annotations

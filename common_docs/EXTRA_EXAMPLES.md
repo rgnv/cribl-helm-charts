@@ -292,3 +292,51 @@ statefulset:
     whenDeleted: Delete 
     whenScaled: Delete
 ```
+
+## OpenShift SCC-Compliant Configuration <a name="openshift-scc"></a>
+_Availability: logstream-workergroup, logstream-leader, and outpost_
+
+OpenShift uses Security Context Constraints (SCC) to control pod permissions. By default, pods run under the `restricted` SCC, which requires specific security context settings. This configuration ensures compatibility with OpenShift's default SCC without requiring custom SCCs.
+
+### Example
+This example configures the pod to run with SCC-compliant settings:
+
+```yaml
+podSecurityContext:
+  runAsNonRoot: true
+  seccompProfile:
+    type: RuntimeDefault
+
+securityContext:
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop:
+      - ALL
+
+config:
+  criblHome: /tmp/cribl
+  # token: required for distributed mode
+
+service:
+  type: ClusterIP
+
+serviceAccount:
+  create: true
+
+resources:
+  limits:
+    cpu: 500m
+    memory: 1536Mi
+  requests:
+    cpu: 100m
+    memory: 256Mi
+```
+
+**Key Points:**
+- **Do NOT set specific UIDs** - OpenShift assigns UIDs from the namespace's UID range
+- **Do NOT add capabilities** - The `restricted` SCC does not allow capabilities
+- **Use `runAsNonRoot: true`** - Required for `restricted` SCC compliance
+- **Set `seccompProfile.type: RuntimeDefault`** - Required for `restricted` SCC compliance
+- **Set `allowPrivilegeEscalation: false`** - Required for `restricted` SCC compliance
+
+For more OpenShift-specific information, see [OPENSHIFT_SPECIFICS.md](./OPENSHIFT_SPECIFICS.md).

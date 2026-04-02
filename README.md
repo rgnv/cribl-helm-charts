@@ -83,6 +83,56 @@ helm upgrade ls-wg-pci cribl/logstream-workergroup -n cribl-stream
 helm upgrade ls-wg-system-metrics cribl/logstream-workergroup -n cribl-stream
 ```
 
+# Deployment Options
+
+These charts support multiple deployment scenarios beyond the default LoadBalancer setup:
+
+## Service Types
+
+- **LoadBalancer** (default): Cloud provider load balancer for external access
+- **ClusterIP**: Internal-only access, requires Ingress or Route for external traffic
+- **NodePort**: External access via node ports, useful when LoadBalancer is unavailable
+
+## Platform-Specific Examples
+
+### OpenShift Deployment
+
+OpenShift requires specific security contexts and service configurations. See:
+- Leader: [examples/openshift-values.yaml](helm-chart-sources/logstream-leader/examples/openshift-values.yaml)
+- Worker Group: [examples/openshift-values.yaml](helm-chart-sources/logstream-workergroup/examples/openshift-values.yaml)
+- Security Context Constraint: [examples/openshift-scc.yaml](examples/openshift-scc.yaml)
+
+### NodePort Deployment
+
+For clusters without LoadBalancer support or OpenShift restrictions:
+- Leader: [examples/nodeport-values.yaml](helm-chart-sources/logstream-leader/examples/nodeport-values.yaml)
+- Worker Group: [examples/nodeport-values.yaml](helm-chart-sources/logstream-workergroup/examples/nodeport-values.yaml)
+
+### Kubernetes Gateway API
+
+Modern alternative to Ingress with TCP/UDP routing support:
+- Leader: [examples/kubernetes-gateway-api.yaml](helm-chart-sources/logstream-leader/examples/kubernetes-gateway-api.yaml)
+- Worker Group: [examples/kubernetes-gateway-api.yaml](helm-chart-sources/logstream-workergroup/examples/kubernetes-gateway-api.yaml)
+
+## Example Files
+
+|File | Purpose | Chart|
+|------|---------|-------|
+| `openshift-values.yaml` |OpenShift deployment with security contexts| Leader, Worker Group |
+| `nodeport-values.yaml` |NodePort service configuration| Leader, Worker Group|
+| `kubernetes-gateway-api.yaml` | Gateway API routing | Leader, Worker Group |
+
+## Testing Infrastructure
+
+Local testing environments for development and validation:
+
+- **k3s on PVE**: [docs/testing-local-k3s.md](docs/testing-local-k3s.md) - Lightweight Kubernetes on Proxmox VE
+- **kind with OpenShift Security**: [docs/testing-kind-openshift.md](docs/testing-kind-openshift.md) - Kubernetes in Docker with restricted pod security
+
+Automated testing scripts:
+- [scripts/test-local-k3s.sh](scripts/test-local-k3s.sh) - k3s cluster testing
+- [scripts/test-kind-openshift.sh](scripts/test-kind-openshift.sh) - kind cluster testing with OpenShift-like security
+
 # Contributing
 
 We welcome contributions! If you're interested in developing or contributing to these Helm charts, please see our [CONTRIBUTING.md](CONTRIBUTING.md) for detailed information on:

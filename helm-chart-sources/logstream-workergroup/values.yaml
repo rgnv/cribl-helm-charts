@@ -36,6 +36,7 @@ config:
   group: kubernetes
   token: criblleader
   useExistingSecret: false
+  # criblHome: /opt/cribl  # Uncomment to set CRIBL_VOLUME_DIR env var (stops container start process from using default /opt/cribl/state /opt/cribl/local paths)
   rejectSelfSignedCerts: 0
   probes: true
   livenessProbe:

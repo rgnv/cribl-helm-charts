@@ -1,0 +1,58 @@
+suite: Test CRIBL_VOLUME_DIR environment variable rendering
+templates:
+  - deployment.yaml
+tests:
+  # Test 1: Default behavior (criblHome NOT set)
+  # Should NOT render CRIBL_VOLUME_DIR
+  - it: should NOT render CRIBL_VOLUME_DIR when criblHome is not set
+    set:
+      config:
+        host: test-leader-internal
+    asserts:
+      - notContains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: CRIBL_VOLUME_DIR
+
+  # Test 2: Custom criblHome value
+  # Should render CRIBL_VOLUME_DIR with custom path
+  - it: should render CRIBL_VOLUME_DIR with custom criblHome
+    set:
+      config:
+        host: test-leader-internal
+        criblHome: /tmp/cribl
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].env[4].name
+          value: CRIBL_VOLUME_DIR
+      - equal:
+          path: spec.template.spec.containers[0].env[4].value
+          value: /tmp/cribl/config-volume
+
+  # Test 3: OpenShift-friendly path
+  # Should render CRIBL_VOLUME_DIR with writable path
+  - it: should render CRIBL_VOLUME_DIR for OpenShift
+    set:
+      config:
+        host: test-leader-internal
+        criblHome: /var/tmp/cribl
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].env[4].name
+          value: CRIBL_VOLUME_DIR
+      - equal:
+          path: spec.template.spec.containers[0].env[4].value
+          value: /var/tmp/cribl/config-volume
+
+  # Test 4: Verify no impact when criblHome is explicitly empty
+  # Should NOT render CRIBL_VOLUME_DIR
+  - it: should NOT render CRIBL_VOLUME_DIR when criblHome is explicitly empty
+    set:
+      config:
+        host: test-leader-internal
+        criblHome: ""
+    asserts:
+      - notContains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: CRIBL_VOLUME_DIR

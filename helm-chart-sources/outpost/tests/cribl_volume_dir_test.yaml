@@ -1,0 +1,122 @@
+---
+suite: test CRIBL_VOLUME_DIR environment variable rendering
+templates:
+  - deployment.yaml
+tests:
+  - it: should not render CRIBL_VOLUME_DIR when criblHome is not set (default)
+    set:
+      criblHome: null
+    asserts:
+      - notContains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: CRIBL_VOLUME_DIR
+
+  - it: should render CRIBL_VOLUME_DIR when criblHome is set
+    set:
+      criblHome: /tmp/cribl
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: CRIBL_VOLUME_DIR
+            value: /tmp/cribl/config-volume
+
+  - it: should render CRIBL_VOLUME_DIR with custom path
+    set:
+      criblHome: /var/lib/cribl
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: CRIBL_VOLUME_DIR
+            value: /var/lib/cribl/config-volume
+
+  - it: should render CRIBL_VOLUME_DIR with OpenShift path
+    set:
+      criblHome: /tmp/cribl
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: CRIBL_VOLUME_DIR
+            value: /tmp/cribl/config-volume
+
+  - it: should not render CRIBL_VOLUME_DIR when criblHome is empty string
+    set:
+      criblHome: ""
+    asserts:
+      - notContains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: CRIBL_VOLUME_DIR
+
+  - it: should preserve other environment variables when CRIBL_VOLUME_DIR is set
+    set:
+      criblHome: /tmp/cribl
+      cribl:
+        leader:
+          host: cribl-leader
+          port: 4200
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: CRIBL_DIST_MODE
+            value: outpost
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: CRIBL_VOLUME_DIR
+            value: /tmp/cribl/config-volume
+
+  - it: should preserve other environment variables when CRIBL_VOLUME_DIR is not set
+    set:
+      criblHome: null
+      cribl:
+        leader:
+          host: cribl-leader
+          port: 4200
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: CRIBL_DIST_MODE
+            value: outpost
+      - notContains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: CRIBL_VOLUME_DIR
+
+  - it: should work with extraEnv when CRIBL_VOLUME_DIR is set
+    set:
+      criblHome: /tmp/cribl
+      extraEnv:
+        CUSTOM_VAR: custom_value
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: CRIBL_VOLUME_DIR
+            value: /tmp/cribl/config-volume
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: CUSTOM_VAR
+            value: custom_value
+
+  - it: should work with extraEnv when CRIBL_VOLUME_DIR is not set
+    set:
+      criblHome: null
+      extraEnv:
+        CUSTOM_VAR: custom_value
+    asserts:
+      - notContains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: CRIBL_VOLUME_DIR
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: CUSTOM_VAR
+            value: custom_value

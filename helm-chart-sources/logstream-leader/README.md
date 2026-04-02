@@ -96,9 +96,87 @@ This section covers the most likely values to override. To see the full scope of
 
   `helm install logstream-leader cribl/logstream-leader --set config.scName='ebs-sc'`
   
+# Deployment Examples
+
+This chart includes several example value files for different deployment scenarios:
+
+## Service Types
+
+The chart supports multiple service types for different platforms:
+
+### LoadBalancer (Default)
+External access via cloud load balancer. Default configuration, suitable for cloud environments with LoadBalancer support.
+
+### ClusterIP
+Internal-only access, typically used with Ingress or OpenShift Routes.
+
+```yaml
+service:
+  internalType: ClusterIP
+  externalType: ClusterIP
+```
+
+### NodePort
+Direct node access without LoadBalancer. Useful for bare-metal clusters and OpenShift.
+
+**Example:** See [`examples/nodeport-values.yaml`](examples/nodeport-values.yaml)
+
+## OpenShift Deployment
+
+For OpenShift clusters with restricted SCCs, use the OpenShift example:
+
+**Example:** See [`examples/openshift-values.yaml`](examples/openshift-values.yaml)
+
+Key features:
+- Non-root security contexts (UID/GID 1000620000)
+- CRIBL_VOLUME_DIR configuration for writable volumes
+- ClusterIP services with OpenShift Routes
+- ServiceAccount with SCC binding instructions
+- PersistentVolumeClaims for state
+
+## Kubernetes Gateway API
+
+Modern HTTP/TCP routing using Gateway API (successor to Ingress):
+
+**Example:** See [`examples/kubernetes-gateway-api.yaml`](examples/kubernetes-gateway-api.yaml)
+
+Prerequisites:
+- Gateway API CRDs installed
+- Gateway controller (Envoy Gateway, Istio, Contour, etc.)
+- DNS configured for your domain
+
+Advantages:
+- TCP/UDP routing (not just HTTP)
+- Cross-namespace routing
+- Better TLS management
+- Native Kubernetes API
+
+## Kubernetes Ingress
+
+Traditional HTTP routing using Ingress controllers (nginx, traefik, etc.):
+
+```yaml
+ingress:
+  enable: true
+  annotations:
+    kubernetes.io/ingress.class: nginx
+  tls:
+    - secretName: cribl-leader-tls
+      hosts:
+        - cribl-leader.example.com
+```
+
+## Example Files
+
+| File | Description | Use Case |
+|------|-------------|----------|
+| `examples/openshift-values.yaml` | OpenShift deployment with SCCs | OpenShift clusters |
+| `examples/nodeport-values.yaml` | NodePort service configuration | Bare-metal, restricted environments |
+| `examples/kubernetes-gateway-api.yaml` | Gateway API configuration | Modern Kubernetes deployments |
+
 # Post-Install/Post-Upgrade
 
-Cribl Stream will not automatically deploy changes to the worker nodes. So you'll need to go into the Cribl Stream UI and [commit and deploy changes](https://docs.cribl.io/stream/deploy-distributed) for all of your worker groups. 
+Cribl Stream will not automatically deploy changes to the worker nodes. So you'll need to go into the Cribl Stream UI and [commit and deploy changes](https://docs.cribl.io/stream/deploy-distributed) for all of your worker groups.
 
 # Cribl Stream Configuration Overrides
 

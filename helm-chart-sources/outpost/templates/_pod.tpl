@@ -56,6 +56,10 @@ containers:
         value: {{ .Values.cribl.home }}
       - name: CRIBL_DIST_MODE
         value: outpost
+      {{- if .Values.criblHome }}
+      - name: CRIBL_VOLUME_DIR
+        value: {{ .Values.criblHome }}/config-volume
+      {{- end }}
       {{- if .Values.cribl.listener }}
       - name: CRIBL_OUTPOST_LISTENER_URL
         value: {{ .Values.cribl.listener | quote }}

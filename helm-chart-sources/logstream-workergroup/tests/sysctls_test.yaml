@@ -1,0 +1,130 @@
+suite: Security Context sysctls support
+templates:
+  - deployment.yaml
+tests:
+  - it: Should handle sysctls array in securityContext
+    set:
+      securityContext:
+        runAsUser: 1000
+        sysctls:
+          - name: "net.ipv4.ip_unprivileged_port_start"
+            value: "514"
+    asserts:
+      - hasDocuments:
+          count: 1
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.runAsUser
+          value: 1000
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.sysctls
+          value:
+            - name: "net.ipv4.ip_unprivileged_port_start"
+              value: "514"
+
+  - it: Should handle multiple sysctls
+    set:
+      securityContext:
+        sysctls:
+          - name: "net.ipv4.ip_unprivileged_port_start"
+            value: "514"
+          - name: "net.core.somaxconn"
+            value: "1024"
+    asserts:
+      - hasDocuments:
+          count: 1
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.sysctls
+          value:
+            - name: "net.ipv4.ip_unprivileged_port_start"
+              value: "514"
+            - name: "net.core.somaxconn"
+              value: "1024"
+
+  - it: Should handle capabilities map in securityContext
+    set:
+      securityContext:
+        runAsUser: 1000
+        capabilities:
+          add:
+            - CAP_NET_BIND_SERVICE
+            - CAP_SYS_PTRACE
+          drop:
+            - ALL
+    asserts:
+      - hasDocuments:
+          count: 1
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.runAsUser
+          value: 1000
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.capabilities.add
+          value:
+            - CAP_NET_BIND_SERVICE
+            - CAP_SYS_PTRACE
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.capabilities.drop
+          value:
+            - ALL
+
+  - it: Should handle podSecurityContext with sysctls
+    set:
+      podSecurityContext:
+        runAsUser: 1000620000
+        runAsGroup: 1000620000
+        fsGroup: 1000620000
+        sysctls:
+          - name: "net.ipv4.ip_unprivileged_port_start"
+            value: "514"
+    asserts:
+      - hasDocuments:
+          count: 1
+      - equal:
+          path: spec.template.spec.securityContext.runAsUser
+          value: 1000620000
+      - equal:
+          path: spec.template.spec.securityContext.runAsGroup
+          value: 1000620000
+      - equal:
+          path: spec.template.spec.securityContext.fsGroup
+          value: 1000620000
+      - equal:
+          path: spec.template.spec.securityContext.sysctls
+          value:
+            - name: "net.ipv4.ip_unprivileged_port_start"
+              value: "514"
+
+  - it: Should handle mixed securityContext with sysctls and capabilities
+    set:
+      securityContext:
+        runAsUser: 1000
+        runAsNonRoot: true
+        allowPrivilegeEscalation: false
+        capabilities:
+          add:
+            - CAP_NET_BIND_SERVICE
+          drop:
+            - ALL
+        sysctls:
+          - name: "net.ipv4.ip_unprivileged_port_start"
+            value: "514"
+    asserts:
+      - hasDocuments:
+          count: 1
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.runAsUser
+          value: 1000
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.runAsNonRoot
+          value: true
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.allowPrivilegeEscalation
+          value: false
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.capabilities.add
+          value:
+            - CAP_NET_BIND_SERVICE
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.sysctls
+          value:
+            - name: "net.ipv4.ip_unprivileged_port_start"
+              value: "514"

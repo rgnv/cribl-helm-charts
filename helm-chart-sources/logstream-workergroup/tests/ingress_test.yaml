@@ -183,3 +183,21 @@ tests:
       - equal:
           path: metadata.labels.override
           value: yes
+
+  - it: Should NOT render empty annotations
+    set:
+      ingress:
+        enable: true
+        annotations: {}
+        ingress:
+          - name: goat
+            annotations: {}
+            rules:
+              - paths:
+                  - path: /
+                    port: 8001
+
+    asserts:
+      - notFailedTemplate: {}
+      - notExists:
+          path: metadata.annotations

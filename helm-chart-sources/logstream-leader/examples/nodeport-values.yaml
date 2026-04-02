@@ -1,0 +1,160 @@
+# NodePort Service Configuration for Cribl Stream Leader
+# Usage: helm install cribl-leader helm-chart-sources/logstream-leader -f nodeport-values.yaml
+#
+# NodePort is useful when:
+# - Cloud provider doesn't support LoadBalancer
+# - OpenShift clusters with LoadBalancer restrictions
+# - Development/testing environments
+# - Direct node access is available
+
+# ========================================
+# NodePort Service Configuration
+# ========================================
+# NodePort exposes the service on each node's IP at a static port
+# External traffic: <NodeIP>:<NodePort> -> Service -> Pod
+
+service:
+  # Internal service for worker-to-leader communication
+  internalType: ClusterIP
+  
+  # External service for API/GUI access
+  externalType: NodePort
+  
+  # Optional: Specify specific node ports (30000-32767)
+  # If not specified, Kubernetes will allocate random ports
+  nodePorts:
+    http: 30090      # HTTP API/GUI (maps to port 9000)
+    https: 30443     # HTTPS API/GUI (maps to port 9443)
+
+# ========================================
+# Access Instructions
+# ========================================
+# Deploy the chart:
+#   helm install cribl-leader helm-chart-sources/logstream-leader \
+#     -f examples/nodeport-values.yaml
+#
+# Access the UI/API:
+#   http://<any-node-ip>:30090
+#   https://<any-node-ip>:30443
+#
+# Get node IPs:
+#   kubectl get nodes -o wide
+#   kubectl get nodes -o jsonpath='{range .items[*]}{.status.addresses[?(@.type=="InternalIP")].address}{"\n"}{end}'
+#
+# For cloud providers, use external IPs:
+#   kubectl get nodes -o jsonpath='{range .items[*]}{.status.addresses[?(@.type=="ExternalIP")].address}{"\n"}{end}'
+
+# ========================================
+# Security Considerations
+# ========================================
+# NodePort exposes services on all nodes by default
+# Consider firewall rules to restrict access:
+#
+# 1. Limit access to specific IPs using loadBalancerSourceRanges:
+#    service:
+#      externalType: NodePort
+#      loadBalancerSourceRanges:
+#        - "10.0.0.0/8"      # Internal network only
+#        - "192.168.1.0/24"  # VPN network
+#
+# 2. Use NetworkPolicy to restrict traffic:
+#    apiVersion: networking.k8s.io/v1
+#    kind: NetworkPolicy
+#    metadata:
+#      name: allow-nodeport-only
+#    spec:
+#      podSelector:
+#        matchLabels:
+#          app: cribl-leader
+#      policyTypes:
+#        - Ingress
+#      ingress:
+#        - from:
+#            - ipBlock:
+#                cidr: 10.0.0.0/8
+#          ports:
+#            - port: 9000
+#              protocol: TCP
+#            - port: 9443
+#              protocol: TCP
+
+# ========================================
+# OpenShift Specific Notes
+# ========================================
+# On OpenShift, NodePort may be preferred when:
+# - LoadBalancer type is forbidden by policy
+# - Router/Ingress infrastructure is not available
+# - Simple setup is needed for testing
+#
+# Note: OpenShift Router is recommended for production
+# Router provides better security, TLS termination, and load balancing
+
+# ========================================
+# Configuring Node Firewall
+# ========================================
+# For production, configure node firewall to limit NodePort access:
+#
+# Example (firewalld):
+#   firewall-cmd --permanent --add-port=30090/tcp
+#   firewall-cmd --permanent --add-port=30443/tcp
+#   firewall-cmd --reload
+#
+# Example (iptables):
+#   iptables -A INPUT -p tcp --dport 30090 -j ACCEPT
+#   iptables -A INPUT -p tcp --dport 30443 -j ACCEPT
+#   iptables-save > /etc/iptables/rules.v4
+#
+# Example (cloud security groups):
+#   - Allow inbound TCP 30090 from trusted IPs
+#   - Allow inbound TCP 30443 from trusted IPs
+
+# ========================================
+# Troubleshooting
+# ========================================
+# If NodePort is not accessible:
+#
+# 1. Check service is created:
+#    kubectl get svc cribl-leader
+#
+# 2. Check node ports are allocated:
+#    kubectl get svc cribl-leader -o jsonpath='{.spec.ports[*].nodePort}'
+#
+# 3. Test node connectivity:
+#    curl http://<node-ip>:30090/api/v1/health
+#
+# 4. Check node firewall:
+#    sudo firewall-cmd --list-ports
+#    sudo iptables -L -n | grep 30090
+#
+# 5. Check service endpoints:
+#    kubectl get endpoints cribl-leader
+#
+# 6. Check pod is running:
+#    kubectl get pods -l app=cribl-leader
+
+# ========================================
+# Deploying Behind a Load Balancer
+# ========================================
+# You can combine NodePort with an external load balancer:
+#
+# 1. Create NodePort service:
+#    helm install cribl-leader ... -f nodeport-values.yaml
+#
+# 2. Configure external load balancer to forward traffic:
+#    NodePort 30090 -> Leader NodePort
+#    NodePort 30443 -> Leader HTTPS
+#
+# 3. External LB example (HAProxy):
+#    frontend cribl_http
+#        bind *:80
+#        mode tcp
+#        default_backend cribl_nodes_http
+#
+#    backend cribl_nodes_http
+#        mode tcp
+#        balance roundrobin
+#        option tcp-check
+#        tcp-check connect port 30090
+#        server node1 <node1-ip>:30090 check
+#        server node2 <node2-ip>:30090 check
+#        server node3 <node3-ip>:30090 check

@@ -1,0 +1,201 @@
+# Custom Security Context Constraint for Cribl Stream on OpenShift
+# Usage: oc apply -f openshift-scc.yaml
+#
+# This SCC allows Cribl pods to run with project-scoped UIDs
+# and the required capabilities for optimal operation.
+
+apiVersion: security.openshift.io/v1
+kind: SecurityContextConstraints
+metadata:
+  name: cribl-custom-scc
+  annotations:
+    description: "Cribl Stream custom SCC for non-root deployments"
+    kubernetes.io/description: "Allows Cribl pods to run with project-scoped UIDs and required capabilities"
+
+# ========================================
+# Run As User Configuration
+# ========================================
+# RunAsAny allows pods to run with any UID in the project's UID range
+# This is required for OpenShift projects that assign UID ranges
+runAsUser:
+  type: RunAsAny
+
+# ========================================
+# File System Group Configuration
+# ========================================
+# Allows pods to use any FS group
+fsGroup:
+  type: RunAsAny
+
+# ========================================
+# SELinux Configuration
+# ========================================
+# MustRunAs requires SELinux context to be specified
+# Use RunAsAny to allow any SELinux context
+seLinuxContext:
+  type: MustRunAs
+
+# ========================================
+# Supplemental Groups
+# ========================================
+# Allows pods to use any supplemental groups
+supplementalGroups:
+  type: RunAsAny
+
+# ========================================
+# Allow Privileged Container
+# ========================================
+# Cribl does not require privileged containers
+allowPrivilegedContainer: false
+
+# ========================================
+# Host Network
+# ========================================
+# Cribl does not require host networking
+allowHostNetwork: false
+
+# ========================================
+# Host Ports
+# ========================================
+# Cribl does not require specific host ports
+# Set to empty to disallow all host ports
+allowHostPorts: false
+
+# ========================================
+# Host IPC
+# ========================================
+# Cribl does not require host IPC namespace
+allowHostIPC: false
+
+# ========================================
+# Host PID
+# ========================================
+# Cribl does not require host PID namespace
+allowHostPID: false
+
+# ========================================
+# Allowed Capabilities
+# ========================================
+# Capabilities required by Cribl:
+# - CAP_NET_BIND_SERVICE: Bind to privileged ports (< 1024)
+# - CAP_SYS_PTRACE: Required for debugging and diagnostics
+allowedCapabilities:
+  - CAP_NET_BIND_SERVICE
+  - CAP_SYS_PTRACE
+
+# Default capabilities that pods get by default
+defaultAddCapabilities: []
+
+# Capabilities that must be dropped (none for Cribl)
+requiredDropCapabilities: []
+
+# ========================================
+# Volume Types
+# ========================================
+# Allowed volume types for Cribl pods
+volumes:
+  - configMap
+  - downwardAPI
+  - emptyDir
+  - persistentVolumeClaim
+  - projected
+  - secret
+  - hostPath  # Uncomment if hostPath volumes are needed (not recommended for OpenShift)
+
+# ========================================
+# Read Only Root Filesystem
+# ========================================
+# Set to true for enhanced security
+# Note: Cribl requires writable filesystem for state/config
+# When CRIBL_VOLUME_DIR is set to a writable volume, this can be true
+readOnlyRootFilesystem: false
+
+# ========================================
+# Deployment Instructions
+# ========================================
+# 1. Apply this SCC:
+#    oc apply -f examples/openshift-scc.yaml
+#
+# 2. Get your project's UID range:
+#    oc get project <namespace> -o jsonpath='{.metadata.annotations.openshift\.io/sa\.scc\.uid-range}'
+#
+# 3. Update values.yaml with your UID range:
+#    podSecurityContext:
+#      runAsUser: <UID from step 2>
+#      runAsGroup: <UID from step 2>
+#      fsGroup: <UID from step 2>
+#
+# 4. Deploy with OpenShift values:
+#    helm install cribl-leader helm-chart-sources/logstream-leader \
+#      -f helm-chart-sources/logstream-leader/examples/openshift-values.yaml -n cribl
+#
+#    helm install cribl-workers helm-chart-sources/logstream-workergroup \
+#      -f helm-chart-sources/logstream-workergroup/examples/openshift-values.yaml -n cribl
+#
+# 5. Bind SCC to ServiceAccounts:
+#    oc adm policy add-scc-to-user cribl-custom-scc -z cribl-leader-sa -n cribl
+#    oc adm policy add-scc-to-user cribl-custom-scc -z cribl-workers-sa -n cribl
+#
+# 6. Verify pods are running with correct SCC:
+#    oc get pod <pod> -o jsonpath='{.metadata.annotations.openshift\.io/scc}'
+#    Should return: cribl-custom-scc
+
+# ========================================
+# Alternative: Restricted SCC
+# ========================================
+# If you prefer to use OpenShift's restricted-v2 SCC:
+#
+# oc adm policy add-scc-to-user restricted-v2 -z cribl-leader-sa -n cribl
+# oc adm policy add-scc-to-user restricted-v2 -z cribl-workers-sa -n cribl
+#
+# Note: restricted-v2 may not allow CAP_NET_BIND_SERVICE or CAP_SYS_PTRACE
+# You may need to create a privileged SCC if those capabilities are required.
+
+# ========================================
+# Troubleshooting SCC Issues
+# ========================================
+# If pods fail to start with SCC errors:
+#
+# 1. Check current SCC assignment:
+#    oc describe pod <pod-name> -n <namespace> | grep -A5 "Security Context"
+#
+# 2. Check SCC details:
+#    oc describe scc cribl-custom-scc
+#
+# 3. Verify ServiceAccount has SCC:
+#    oc get scc cribl-custom-scc -o yaml | grep -A5 "users:"
+#
+# 4. Check project UID range:
+#    oc get project <namespace> -o yaml | grep uid-range
+#
+# 5. Test with minimal pod:
+#    oc run test --image=cribl/cribl:latest -n cribl -- \
+#      /bin/sh -c "sleep 3600"
+#    oc get pod test -o jsonpath='{.metadata.annotations.openshift\.io/scc}'
+#
+# Common errors and fixes:
+# - "provider 'anyuid' forbidden": Use RunAsAny SCC or bind correct SCC
+# - "hostPath volumes not allowed": Remove hostPath from volumes list
+# - "LoadBalancer type forbidden": Use ClusterIP with Route/Ingress
+# - "capability not allowed": Add to allowedCapabilities list
+
+# ========================================
+# Security Best Practices
+# ========================================
+# For production deployments:
+#
+# 1. Use the most restrictive SCC that allows Cribl to run
+# 2. Avoid hostPath volumes (use PVCs instead)
+# 3. Run as non-root user with project-scoped UID
+# 4. Limit capabilities to only what's required
+# 5. Use NetworkPolicy to restrict pod-to-pod communication
+# 6. Enable audit logging for security events
+# 7. Regularly review SCC assignments
+# 8. Consider using OpenShift's built-in RBAC for fine-grained permissions
+
+# ========================================
+# References
+# ========================================
+# - OpenShift SCC Guide: https://docs.openshift.com/container-platform/4.10/authentication/managing-security-context-constraints.html
+# - Cribl Security: https://docs.cribl.io/stream/admin-guide#security
+# - Kubernetes Pod Security: https://kubernetes.io/docs/concepts/security/pod-security-standards/

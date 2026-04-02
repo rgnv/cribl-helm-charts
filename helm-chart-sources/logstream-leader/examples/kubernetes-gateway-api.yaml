@@ -1,0 +1,318 @@
+# Kubernetes Gateway API Configuration for Cribl Stream Leader
+# Usage: Deploy leader with ClusterIP, then apply Gateway manifests
+#
+# Gateway API is the successor to Ingress, supporting:
+# - TCP/UDP routing (not just HTTP)
+# - Cross-namespace routing
+# - Better load balancing and traffic management
+# - Native Kubernetes RBAC for routing rules
+#
+# Prerequisites:
+# - Gateway API CRDs installed (kubectl get gatewayclasses)
+# - Gateway controller deployed (Envoy Gateway, Istio, Contour, etc.)
+# - DNS configured for your domain
+
+# ========================================
+# Leader Values - ClusterIP Only
+# ========================================
+# Deploy leader with no external service:
+# helm install cribl-leader helm-chart-sources/logstream-leader \
+#   --set service.internalType=ClusterIP \
+#   --set service.externalType=ClusterIP
+
+service:
+  internalType: ClusterIP   # Internal leader-to-worker communication
+  externalType: ClusterIP   # External API (Gateway handles routing)
+
+# ========================================
+# Gateway Class (Cluster-scoped)
+# ========================================
+# Install this once per cluster
+# Required for Gateway to work
+
+# Save as: gateway-class.yaml
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: GatewayClass
+metadata:
+  name: cribl-gateway-class
+spec:
+  controllerName: gateway.envoyproxy.io/gatewayclass-controller
+  # For other controllers, use appropriate controllerName:
+  # Istio: istio.io/gateway-controller
+  # Contour: projectcontour.io/gateway-controller
+  # NGINX: nginx.org/nginx-gateway-controller
+
+---
+# ========================================
+# Gateway (Namespace-scoped)
+# ========================================
+# Gateway represents the infrastructure (load balancer, proxy)
+# This is shared by all HTTPRoutes in the namespace
+
+# Save as: gateway.yaml
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: Gateway
+metadata:
+  name: cribl-leader-gateway
+  namespace: cribl
+  labels:
+    app: cribl-leader
+spec:
+  gatewayClassName: cribl-gateway-class
+  listeners:
+    # HTTP listener for API/GUI
+    - name: http
+      protocol: HTTP
+      port: 80
+      allowedRoutes:
+        namespaces:
+          from: Same  # Only routes in same namespace can attach
+
+    # HTTPS listener with TLS (optional, uncomment if needed)
+    # - name: https
+    #   protocol: HTTPS
+    #   port: 443
+    #   tls:
+    #     mode: Terminate
+    #     certificateRefs:
+    #       - name: cribl-leader-tls
+    #         namespace: cribl
+    #   allowedRoutes:
+    #     namespaces:
+    #       from: Same
+
+---
+# ========================================
+# HTTPRoute - API/GUI Access
+# ========================================
+# HTTPRoute defines routing rules for HTTP traffic
+
+# Save as: leader-route.yaml
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: cribl-leader-http
+  namespace: cribl
+  labels:
+    app: cribl-leader
+spec:
+  parentRefs:
+    - name: cribl-leader-gateway
+      namespace: cribl
+      # Optional: specify port if multiple listeners
+      # port: 80
+  
+  hostnames:
+    - "cribl-leader.example.com"
+    # Add more hostnames as needed:
+    # - "cribl.example.com"
+    # - "stream.example.com"
+  
+  rules:
+    # Route all traffic to leader service
+    - backendRefs:
+        - name: cribl-leader
+          port: 9000
+          weight: 100
+      
+      # Optional: Add timeouts
+      timeouts:
+        request: "30s"
+        backendRequest: "30s"
+
+      # Optional: Add retries
+      # retries:
+      #   attempts: 3
+      #   backoff: "1s"
+
+---
+# ========================================
+# TCPRoute - Deprecated (Use HTTPRoute with AppProtocol)
+# ========================================
+# Note: TCPRoute is being superseded by HTTPRoute with AppProtocol
+# For TCP traffic, use Gateway API v1beta1 or later with AppProtocol
+
+# ========================================
+# Deployment Commands
+# ========================================
+# 1. Install Gateway API CRDs (if not present):
+#    kubectl apply -f https://github.com/kubernetes-sigs/gateway-api/releases/download/v1.0.0/standard-install.yaml
+#
+# 2. Deploy Gateway controller (Envoy Gateway example):
+#    helm install envoy-gateway oci://docker.io/envoyproxy/gateway-helm \
+#      --version v1.0.0 -n envoy-gateway-system --create-namespace
+#
+# 3. Wait for Gateway to be ready:
+#    kubectl wait --for=condition=ready gateway/cribl-leader-gateway -n cribl --timeout=60s
+#
+# 4. Deploy leader with ClusterIP:
+#    helm install cribl-leader helm-chart-sources/logstream-leader \
+#      --set service.internalType=ClusterIP \
+#      --set service.externalType=ClusterIP -n cribl
+#
+# 5. Apply Gateway manifests:
+#    kubectl apply -f gateway-class.yaml
+#    kubectl apply -f gateway.yaml
+#    kubectl apply -f leader-route.yaml
+#
+# 6. Get Gateway IP:
+#    kubectl get gateway cribl-leader-gateway -n cribl -o jsonpath='{.status.addresses[0].value}'
+#
+# 7. Configure DNS:
+#    cribl-leader.example.com -> <Gateway-IP>
+
+# ========================================
+# TLS Configuration
+# ========================================
+# Option 1: Use cert-manager for automatic TLS
+# apiVersion: cert-manager.io/v1
+# kind: Certificate
+# metadata:
+#   name: cribl-leader-tls
+#   namespace: cribl
+# spec:
+#   secretName: cribl-leader-tls
+#   issuerRef:
+#     name: letsencrypt-prod
+#     kind: ClusterIssuer
+#   dnsNames:
+#     - cribl-leader.example.com
+#
+# Option 2: Manual TLS certificate
+# kubectl create secret tls cribl-leader-tls \
+#   --cert=path/to/tls.crt \
+#   --key=path/to/tls.key \
+#   -n cribl
+
+# ========================================
+# Cross-Namespace Routing
+# ========================================
+# Gateway API supports routing across namespaces
+# To allow routes from other namespaces:
+#
+# Gateway listeners:
+#   listeners:
+#     - name: http
+#       protocol: HTTP
+#       port: 80
+#       allowedRoutes:
+#         namespaces:
+#           from: Selector
+#           selector:
+#             matchLabels:
+#               expose-cribl: "true"
+#
+# In other namespaces, label the namespace:
+# kubectl label namespace other-namespace expose-cribl=true
+
+# ========================================
+# Traffic Policy
+# ========================================
+# HTTPRoute supports traffic policies for better control
+
+# Example: Load balancing with health checks
+# ---
+# apiVersion: gateway.networking.k8s.io/v1
+# kind: HTTPRoute
+# metadata:
+#   name: cribl-leader-http
+#   namespace: cribl
+# spec:
+#   parentRefs:
+#     - name: cribl-leader-gateway
+#   hostnames:
+#     - "cribl-leader.example.com"
+#   rules:
+#     - backendRefs:
+#         - name: cribl-leader
+#           port: 9000
+#       timeouts:
+#         request: "30s"
+#         backendRequest: "30s"
+
+# ========================================
+# Observability
+# ========================================
+# Gateway API integrates with observability tools
+#
+# Prometheus metrics:
+#   Gateway controllers expose metrics on /metrics
+#   Configure Prometheus scrape for Gateway pods
+#
+# Access logs:
+#   Most Gateway controllers support structured access logs
+#   Example (Envoy Gateway):
+#   apiVersion: gateway.envoyproxy.io/v1alpha1
+#   kind: EnvoyProxy
+#   metadata:
+#     name: cribl-proxy-config
+#   spec:
+#     telemetry:
+#       accessLog:
+#         type: File
+#         path: /var/log/envoy/access.log
+
+# ========================================
+# Troubleshooting
+# ========================================
+# If Gateway is not working:
+#
+# 1. Check GatewayClass exists:
+#    kubectl get gatewayclasses
+#
+# 2. Check Gateway status:
+#    kubectl describe gateway cribl-leader-gateway -n cribl
+#
+# 3. Check HTTPRoute status:
+#    kubectl describe httproute cribl-leader-http -n cribl
+#
+# 4. Check backend service:
+#    kubectl get svc cribl-leader -n cribl
+#    kubectl get endpoints cribl-leader -n cribl
+#
+# 5. Check Gateway controller logs:
+#    kubectl logs -n envoy-gateway-system -l app=envoy-gateway
+#
+# 6. Test DNS resolution:
+#    nslookup cribl-leader.example.com
+#
+# 7. Test connectivity:
+#    curl -v http://cribl-leader.example.com/api/v1/health
+#    curl -v https://cribl-leader.example.com/api/v1/health
+
+# ========================================
+# Comparison: Gateway API vs Ingress
+# ========================================
+# Use Gateway API when:
+# - Need TCP/UDP routing (not just HTTP)
+# - Want cross-namespace routing
+# - Need better RBAC for routing rules
+# - Want portable configuration across controllers
+#
+# Use Ingress when:
+# - Only need HTTP routing
+# - Using older Kubernetes versions (<1.24)
+# - Simpler setup is preferred
+#
+# Ingress example (for comparison):
+# apiVersion: networking.k8s.io/v1
+# kind: Ingress
+# metadata:
+#   name: cribl-leader
+#   annotations:
+#     nginx.ingress.kubernetes.io/rewrite-target: /
+# spec:
+#   rules:
+#     - host: cribl-leader.example.com
+#       http:
+#         paths:
+#           - path: /
+#             pathType: Prefix
+#             backend:
+#               service:
+#                 name: cribl-leader
+#                 port:
+#                   number: 9000

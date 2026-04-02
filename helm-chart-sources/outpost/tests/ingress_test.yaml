@@ -1,0 +1,126 @@
+suite: Outpost Ingress
+templates:
+  - ingress.yaml
+tests:
+  - it: should not render ingress when disabled (default)
+    set:
+      cribl.leader: "tcp://token@leader:4200"
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: should render ingress when enabled
+    set:
+      cribl.leader: "tcp://token@leader:4200"
+      ingress.enable: true
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: Ingress
+      - equal:
+          path: metadata.name
+          value: RELEASE-NAME-outpost
+      - equal:
+          path: spec.rules[0].http.paths[0].path
+          value: /*
+      - equal:
+          path: spec.rules[0].http.paths[0].pathType
+          value: Prefix
+      - equal:
+          path: spec.rules[0].http.paths[0].backend.service.port.number
+          value: 9000
+
+  - it: should render with custom host
+    set:
+      cribl.leader: "tcp://token@leader:4200"
+      ingress.enable: true
+      ingress.host: outpost.example.com
+    asserts:
+      - equal:
+          path: spec.rules[0].host
+          value: outpost.example.com
+
+  - it: should render with custom prefix
+    set:
+      cribl.leader: "tcp://token@leader:4200"
+      ingress.enable: true
+      ingress.prefix: /outpost/*
+    asserts:
+      - equal:
+          path: spec.rules[0].http.paths[0].path
+          value: /outpost/*
+
+  - it: should render with ingressClassName
+    set:
+      cribl.leader: "tcp://token@leader:4200"
+      ingress.enable: true
+      ingress.ingressClassName: nginx
+    asserts:
+      - equal:
+          path: spec.ingressClassName
+          value: nginx
+
+  - it: should render with TLS
+    set:
+      cribl.leader: "tcp://token@leader:4200"
+      ingress.enable: true
+      ingress.tls:
+        - hosts:
+            - outpost.example.com
+          secretName: outpost-tls
+    asserts:
+      - equal:
+          path: spec.tls[0].hosts[0]
+          value: outpost.example.com
+      - equal:
+          path: spec.tls[0].secretName
+          value: outpost-tls
+
+  - it: should render with annotations
+    set:
+      cribl.leader: "tcp://token@leader:4200"
+      ingress.enable: true
+      ingress.annotations:
+        kubernetes.io/ingress.class: nginx
+        cert-manager.io/cluster-issuer: letsencrypt-prod
+    asserts:
+      - equal:
+          path: metadata.annotations["kubernetes.io/ingress.class"]
+          value: nginx
+      - equal:
+          path: metadata.annotations["cert-manager.io/cluster-issuer"]
+          value: letsencrypt-prod
+
+  - it: should render with labels
+    set:
+      cribl.leader: "tcp://token@leader:4200"
+      ingress.enable: true
+      ingress.labels:
+        environment: production
+        app: outpost
+    asserts:
+      - equal:
+          path: metadata.labels.environment
+          value: production
+      - equal:
+          path: metadata.labels.app
+          value: outpost
+
+  - it: should not render empty annotations
+    set:
+      cribl.leader: "tcp://token@leader:4200"
+      ingress.enable: true
+      ingress.annotations: {}
+    asserts:
+      - notExists:
+          path: metadata.annotations
+
+  - it: should not render empty host
+    set:
+      cribl.leader: "tcp://token@leader:4200"
+      ingress.enable: true
+      ingress.host: ""
+    asserts:
+      - notExists:
+          path: spec.rules[0].host

@@ -66,6 +66,11 @@ extraInitContainers: []
 # Additional Pod labels
 labels: {}
 
+# Override the default CRIBL volume directory (default is /opt/cribl).
+# Useful for OpenShift/non-root deployments where the container user cannot write to /opt/cribl.
+# When set, CRIBL_VOLUME_DIR environment variable will be configured to point to this location.
+# criblHome: /tmp/cribl
+
 cribl:
   home: /opt/cribl
   # if set, overrides cribl.leader value
@@ -131,6 +136,20 @@ service:
   - name: distmgt
     port: 4200
     protocol: TCP
+
+# Ingress configuration for external access to the Outpost API
+ingress:
+  enable: false
+  annotations: {}
+  labels: {}
+  tls: []
+  #  - hosts:
+  #      - outpost.example.com
+  #    secretName: outpost-example-com-tls
+  prefix: /*
+  pathType: Prefix
+  ingressClassName:
+  host:
 
 resources: 
   limits:
