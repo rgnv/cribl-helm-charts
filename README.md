@@ -122,17 +122,6 @@ Modern alternative to Ingress with TCP/UDP routing support:
 | `nodeport-values.yaml` |NodePort service configuration| Leader, Worker Group|
 | `kubernetes-gateway-api.yaml` | Gateway API routing | Leader, Worker Group |
 
-## Testing Infrastructure
-
-Local testing environments for development and validation:
-
-- **k3s on PVE**: [docs/testing-local-k3s.md](docs/testing-local-k3s.md) - Lightweight Kubernetes on Proxmox VE
-- **kind with OpenShift Security**: [docs/testing-kind-openshift.md](docs/testing-kind-openshift.md) - Kubernetes in Docker with restricted pod security
-
-Automated testing scripts:
-- [scripts/test-local-k3s.sh](scripts/test-local-k3s.sh) - k3s cluster testing
-- [scripts/test-kind-openshift.sh](scripts/test-kind-openshift.sh) - kind cluster testing with OpenShift-like security
-
 # Contributing
 
 We welcome contributions! If you're interested in developing or contributing to these Helm charts, please see our [CONTRIBUTING.md](CONTRIBUTING.md) for detailed information on:
